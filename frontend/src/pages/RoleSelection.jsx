@@ -13,13 +13,13 @@ export default function RoleSelection() {
 
       <div className="role-container">
         <div className="role-card" onClick={() => navigate("/login/user")}>
-          <h2>👨‍🎓 User</h2>
+          <h2> User</h2>
           <p>Report and track campus complaints</p>
           <button>Continue as User</button>
         </div>
 
         <div className="role-card" onClick={() => navigate("/login/admin")}>
-          <h2>🛡️ Admin</h2>
+          <h2> Admin</h2>
           <p>Manage and resolve campus complaints</p>
           <button>Continue as Admin</button>
         </div>
