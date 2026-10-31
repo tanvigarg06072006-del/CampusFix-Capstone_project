@@ -672,4 +672,41 @@ input {
   }
 }
 
+/* Fix Show Password alignment on Login and Register */
+
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-card form .show-password {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: 100%;
+  margin: 2px 0 8px !important;
+  font-size: 14px;
+  font-weight: 400 !important;
+}
+
+.login-card form .show-password input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 !important;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.login-card form .show-password {
+  color: #333;
+}
+
+.login-card form button {
+  width: 100%;
+  margin-top: 4px;
+}
+
 

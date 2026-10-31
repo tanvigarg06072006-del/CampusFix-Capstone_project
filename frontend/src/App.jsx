@@ -1,14 +1,14 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  BrowserRouter,
   Routes,
   Route,
   Navigate
 } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
 
+import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase";
+
 import RoleSelection from "./pages/RoleSelection";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -39,7 +39,7 @@ function ProtectedRoute({ children, requiredRole, user }) {
   return children;
 }
 
-function AppContent() {
+function App() {
   const [user, setUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
@@ -55,9 +55,11 @@ function AppContent() {
           "campusfixRole",
           isAdmin ? "admin" : "user"
         );
+
         sessionStorage.setItem("campusfixUserEmail", email);
 
-        const defaultName = email.split("@")[0]
+        const defaultName = email
+          .split("@")[0]
           .replace(/[._-]/g, " ")
           .replace(/\b\w/g, (char) => char.toUpperCase());
 
@@ -81,7 +83,9 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/" element={<RoleSelection />} />
+
       <Route path="/login/:role" element={<Login />} />
+
       <Route path="/register" element={<Register />} />
 
       <Route
@@ -104,14 +108,6 @@ function AppContent() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-  );
-}
-
-function App() {
-  return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
   );
 }
 

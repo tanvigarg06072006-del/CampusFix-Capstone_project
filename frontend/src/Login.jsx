@@ -1,8 +1,18 @@
 
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState } from "react";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail
+} from "firebase/auth";
+import { auth } from "../firebase";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
-export default function Login() {
+const ADMIN_EMAILS = [
+  "prernadixit14@gmail.com",
+  "tanvi060706@gmail.com"
+];
+
+function Login() {
   const { role } = useParams();
   const navigate = useNavigate();
 
@@ -10,145 +20,134 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const allowedAdmins = [
-    "prernadixit14@gmail.com",
-    "tanvi060706@gmail.com"
-  ];
-
-  function handleLogin(e) {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
 
-    const enteredEmail = email.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
+    const isAdmin = ADMIN_EMAILS.includes(cleanEmail);
 
-    if (!enteredEmail || !password.trim()) {
-      setError("Please enter both email and password.");
+    if (role === "admin" && !isAdmin) {
+      setError("Invalid admin email. Access denied.");
       return;
     }
 
-    if (role === "admin") {
-      if (!allowedAdmins.includes(enteredEmail)) {
-        setError("Invalid Admin Email! You are not authorised.");
-        return;
-      }
+    try {
+      setLoading(true);
 
-      sessionStorage.setItem("campusfixRole", "admin");
-      sessionStorage.setItem("campusfixUserEmail", enteredEmail);
-      sessionStorage.setItem(
-        "campusfixUserName",
-        enteredEmail === "prernadixit14@gmail.com"
-          ? "Prerna"
-          : "Tanvi"
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        password
       );
 
-      navigate("/admin");
+      const loggedInEmail = userCredential.user.email.toLowerCase();
+      const loggedInIsAdmin = ADMIN_EMAILS.includes(loggedInEmail);
+
+      if (loggedInIsAdmin) {
+        sessionStorage.setItem("campusfixRole", "admin");
+        navigate("/admin");
+      } else {
+        sessionStorage.setItem("campusfixRole", "user");
+        navigate("/user");
+      }
+    } catch (err) {
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/wrong-password" ||
+        err.code === "auth/user-not-found"
+      ) {
+        setError("Incorrect email or password. Please try again.");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("Too many attempts. Please try again later.");
+      } else {
+        setError(err.message || "Login failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setError("Please enter your email address first.");
       return;
     }
 
-    if (role === "user") {
-      sessionStorage.setItem("campusfixRole", "user");
-      sessionStorage.setItem("campusfixUserEmail", enteredEmail);
+    setError("");
 
-      const defaultName = enteredEmail.split("@")[0];
-      const formattedName = defaultName
-        .replace(/[._-]/g, " ")
-        .replace(/\b\w/g, char => char.toUpperCase());
-
-      sessionStorage.setItem("campusfixUserName", formattedName);
-
-      navigate("/user");
-      return;
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+      setError("Password reset link has been sent to your email.");
+    } catch (err) {
+      setError("Unable to send reset link. Please check your email.");
     }
-
-    setError("Invalid role selected.");
-  }
+  };
 
   return (
-    <div className="welcome-page">
+    <div className="login-page">
       <div className="login-card">
-
-        <div className="login-header">
-          <h1>CampusFix</h1>
-
-          <h2>
-            {role === "admin" ? "Admin Login" : "User Login"}
-          </h2>
-
-          <p>
-            {role === "admin"
-              ? "Access your administration dashboard."
-              : "Welcome! Login to report campus complaints."}
-          </p>
-        </div>
+        <h1>CampusFix</h1>
+        <h2>{role === "admin" ? "Admin Login" : "User Login"}</h2>
+        <p>Welcome! Login to continue.</p>
 
         <form onSubmit={handleLogin}>
+          <label>Email Address</label>
+          <input
+            type="email"
+            placeholder="Enter your email address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-          <div className="login-form-group">
-            <label htmlFor="email">Email Address</label>
+          <label>Password</label>
+          <input
+            type={showPassword ? "text" : "password"}
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
+          <label className="show-password">
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError("");
-              }}
-              placeholder="Enter your email address"
-              autoComplete="username"
-              required
+              type="checkbox"
+              checked={showPassword}
+              onChange={(e) => setShowPassword(e.target.checked)}
             />
-          </div>
+            Show Password
+          </label>
 
-          <div className="login-form-group">
-            <label htmlFor="password">Password</label>
-
-            <div className="password-box">
-              <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError("");
-                }}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                required
-              />
-
-              <button
-                type="button"
-                className="toggle-password"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <div className="login-error" role="alert">
-              {error}
-            </div>
-          )}
-
-          <button type="submit" className="login-submit">
-            Login
+          <button
+            type="button"
+            className="forgot-password"
+            onClick={handleForgotPassword}
+          >
+            Forgot Password?
           </button>
 
+          {error && <p className="auth-error">{error}</p>}
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Logging in..." : "Login"}
+          </button>
         </form>
 
-        <button
-          type="button"
-          className="back-button"
-          onClick={() => navigate("/")}
-        >
-          ← Back to role selection
-        </button>
+        {role !== "admin" && (
+          <p>
+            New to CampusFix? <Link to="/register">Create an account</Link>
+          </p>
+        )}
 
+        <Link to="/">← Back to role selection</Link>
       </div>
     </div>
   );
 }
+
+export default Login;
