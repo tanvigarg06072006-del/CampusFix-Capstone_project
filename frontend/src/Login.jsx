@@ -1,16 +1,13 @@
-
 import React, { useState } from "react";
 import {
   signInWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  getIdTokenResult,
+  signOut
 } from "firebase/auth";
+
 import { auth } from "../firebase";
 import { Link, useNavigate, useParams } from "react-router-dom";
-
-const ADMIN_EMAILS = [
-  "prernadixit14@gmail.com",
-  "tanvi060706@gmail.com"
-];
 
 function Login() {
   const { role } = useParams();
@@ -25,45 +22,50 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
-
-    const cleanEmail = email.trim().toLowerCase();
-    const isAdmin = ADMIN_EMAILS.includes(cleanEmail);
-
-    if (role === "admin" && !isAdmin) {
-      setError("Invalid admin email. Access denied.");
-      return;
-    }
+    setLoading(true);
 
     try {
-      setLoading(true);
-
-      const userCredential = await signInWithEmailAndPassword(
+      const credential = await signInWithEmailAndPassword(
         auth,
-        cleanEmail,
+        email.trim().toLowerCase(),
         password
       );
 
-      const loggedInEmail = userCredential.user.email.toLowerCase();
-      const loggedInIsAdmin = ADMIN_EMAILS.includes(loggedInEmail);
+      const user = credential.user;
 
-      if (loggedInIsAdmin) {
-        sessionStorage.setItem("campusfixRole", "admin");
+      // Check admin authorization using Firebase custom claims
+      const token = await getIdTokenResult(user, true);
+      const isAdmin = token.claims.admin === true;
+
+      if (role === "admin") {
+        if (!isAdmin) {
+          await signOut(auth);
+          setError("Access denied. You are not an authorized admin.");
+          return;
+        }
+
+        navigate("/admin");
+        return;
+      }
+
+      if (isAdmin) {
         navigate("/admin");
       } else {
-        sessionStorage.setItem("campusfixRole", "user");
         navigate("/user");
       }
+
     } catch (err) {
       if (
         err.code === "auth/invalid-credential" ||
-        err.code === "auth/wrong-password" ||
-        err.code === "auth/user-not-found"
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/wrong-password"
       ) {
         setError("Incorrect email or password. Please try again.");
       } else if (err.code === "auth/too-many-requests") {
         setError("Too many attempts. Please try again later.");
       } else {
-        setError(err.message || "Login failed. Please try again.");
+        console.error("Login error:", err);
+        setError("Login failed. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -92,11 +94,14 @@ function Login() {
     <div className="login-page">
       <div className="login-card">
         <h1>CampusFix</h1>
+
         <h2>{role === "admin" ? "Admin Login" : "User Login"}</h2>
+
         <p>Welcome! Login to continue.</p>
 
         <form onSubmit={handleLogin}>
           <label>Email Address</label>
+
           <input
             type="email"
             placeholder="Enter your email address"
@@ -106,6 +111,7 @@ function Login() {
           />
 
           <label>Password</label>
+
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Enter your password"

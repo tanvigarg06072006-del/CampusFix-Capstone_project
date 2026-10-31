@@ -3,11 +3,16 @@ import React, { useState } from "react";
 import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  getIdTokenResult
+  signOut
 } from "firebase/auth";
 
 import { auth } from "../firebase";
 import { Link, useNavigate, useParams } from "react-router-dom";
+
+const ADMIN_EMAILS = [
+  "prernadixit14@gmail.com",
+  "tanvi060706@gmail.com"
+];
 
 function Login() {
   const { role } = useParams();
@@ -24,43 +29,56 @@ function Login() {
     setError("");
     setLoading(true);
 
+    const cleanEmail = email.trim().toLowerCase();
+    const isAdmin = ADMIN_EMAILS.includes(cleanEmail);
+
     try {
+      if (role === "admin" && !isAdmin) {
+        setError("Invalid admin email or password.");
+        return;
+      }
+
+      if (role === "user" && isAdmin) {
+        setError("Please use Admin Login.");
+        return;
+      }
+
       const credential = await signInWithEmailAndPassword(
         auth,
-        email.trim().toLowerCase(),
+        cleanEmail,
         password
       );
 
-      const user = credential.user;
+      // Email verification is not required for login.
 
-      if (!user.emailVerified) {
-        await auth.signOut();
-        setError("Please verify your email before logging in.");
-        return;
-      }
-
-      const token = await getIdTokenResult(user, true);
-      const isAdmin = token.claims.admin === true;
-
-      if (role === "admin" && !isAdmin) {
-        await auth.signOut();
-        setError("Access denied. You are not an authorized admin.");
-        return;
-      }
-
-      if (isAdmin) {
-        navigate("/admin");
+      if (role === "admin") {
+        navigate("/admin", { replace: true });
       } else {
-        navigate("/user");
+        navigate("/user", { replace: true });
       }
+
     } catch (err) {
-      if (err.code === "auth/invalid-credential") {
+      console.error("FIREBASE LOGIN ERROR:", err.code, err.message);
+
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/wrong-password"
+      ) {
         setError("Incorrect email or password. Please try again.");
+      } else if (err.code === "auth/user-not-found") {
+        setError("Account not found. Please create an account first.");
+      } else if (err.code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else if (err.code === "auth/network-request-failed") {
+        setError("Network error. Please check your internet.");
       } else if (err.code === "auth/too-many-requests") {
         setError("Too many attempts. Please try again later.");
+      } else if (err.code === "auth/user-disabled") {
+        setError("This account has been disabled.");
       } else {
-        setError("Login failed. Please check your email and password.");
+        setError(`Login failed: ${err.code || err.message}`);
       }
+
     } finally {
       setLoading(false);
     }
@@ -74,12 +92,18 @@ function Login() {
       return;
     }
 
+    if (role === "admin" && !ADMIN_EMAILS.includes(cleanEmail)) {
+      setError("Please enter an authorized admin email.");
+      return;
+    }
+
     setError("");
 
     try {
       await sendPasswordResetEmail(auth, cleanEmail);
-      setError("Password reset link has been sent to your email.");
+      setError("Password reset link sent to your email.");
     } catch (err) {
+      console.error("PASSWORD RESET ERROR:", err);
       setError("Unable to send reset link. Please check your email.");
     }
   };
@@ -87,12 +111,16 @@ function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
+
         <h1>CampusFix</h1>
+
         <h2>{role === "admin" ? "Admin Login" : "User Login"}</h2>
+
         <p>Welcome! Login to continue.</p>
 
         <form onSubmit={handleLogin}>
           <label>Email Address</label>
+
           <input
             type="email"
             placeholder="Enter your email address"
@@ -102,6 +130,7 @@ function Login() {
           />
 
           <label>Password</label>
+
           <input
             type={showPassword ? "text" : "password"}
             placeholder="Enter your password"
@@ -127,21 +156,24 @@ function Login() {
             Forgot Password?
           </button>
 
-          {error && <p className="auth-error">{error}</p>}
+          {error && (
+            <p className="auth-error">{error}</p>
+          )}
 
           <button type="submit" disabled={loading}>
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
-        {/* Only students can create accounts */}
-        {role !== "admin" && (
+        {role === "user" && (
           <p>
-            New to CampusFix? <Link to="/register">Create an account</Link>
+            New to CampusFix?{" "}
+            <Link to="/register">Create an account</Link>
           </p>
         )}
 
         <Link to="/">← Back to role selection</Link>
+
       </div>
     </div>
   );
