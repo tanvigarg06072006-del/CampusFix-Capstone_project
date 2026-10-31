@@ -185,3 +185,396 @@ input {
     padding: 15px;
   }
 }
+
+/* ==================================
+   CAMPUSFIX UPDATED DASHBOARDS
+================================== */
+
+.dashboard-page {
+  min-height: 100vh;
+  background: #f4f6fa;
+  color: #252b33;
+}
+
+.dashboard-header {
+  background: #ffffff;
+  padding: 20px 6%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 15px;
+}
+
+.dashboard-header h1 {
+  color: #245bc7;
+  font-size: 25px;
+  margin: 0;
+}
+
+.dashboard-header p {
+  color: #727b88;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.logout-button {
+  background: #dc3545;
+  color: white;
+  padding: 10px 18px;
+  border-radius: 6px;
+}
+
+.logout-button:hover {
+  background: #b92332;
+}
+
+.dashboard-content {
+  width: min(1100px, 90%);
+  margin: 30px auto;
+}
+
+.welcome-section {
+  margin-bottom: 25px;
+}
+
+.welcome-section h2 {
+  font-size: 25px;
+  margin-bottom: 8px;
+}
+
+.welcome-section p {
+  color: #727b88;
+  font-size: 14px;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.stat-card {
+  background: white;
+  padding: 20px;
+  border: 1px solid #e2e7ef;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stat-card span {
+  color: #657080;
+  font-size: 13px;
+}
+
+.stat-card strong {
+  font-size: 30px;
+  color: #252b33;
+}
+
+.new-stat {
+  border-left: 4px solid #dc3545;
+}
+
+.new-stat strong {
+  color: #dc3545;
+}
+
+.pending-stat strong {
+  color: #d18b19;
+}
+
+.progress-stat strong {
+  color: #245bc7;
+}
+
+.resolved-stat strong {
+  color: #21834a;
+}
+
+.dashboard-panel {
+  background: white;
+  border: 1px solid #e2e7ef;
+  border-radius: 10px;
+  padding: 25px;
+  margin-bottom: 25px;
+}
+
+.dashboard-panel h3 {
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.dashboard-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.dashboard-panel textarea {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #d7dce4;
+  border-radius: 7px;
+  resize: vertical;
+  font: inherit;
+}
+
+.primary-action {
+  align-self: flex-start;
+  background: #245bc7;
+  color: white;
+  padding: 12px 20px;
+}
+
+.success-message {
+  margin-top: 15px;
+  padding: 12px;
+  color: #176b38;
+  background: #e7f6ec;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.panel-heading h3 {
+  margin-bottom: 5px;
+}
+
+.panel-heading p,
+.panel-heading span {
+  color: #727b88;
+  font-size: 12px;
+}
+
+.complaint-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.complaint-filters input,
+.complaint-filters select,
+.admin-status-control select {
+  min-height: 42px;
+  border: 1px solid #d7dce4;
+  border-radius: 6px;
+  padding: 9px 12px;
+  background: white;
+  font-size: 13px;
+}
+
+.complaint-filters input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-complaint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-complaint-card,
+.user-complaint-card {
+  border: 1px solid #e1e5eb;
+  border-radius: 9px;
+  padding: 20px;
+  background: white;
+}
+
+.admin-complaint-card.new-complaint {
+  border: 1px solid #dc3545;
+  border-left: 5px solid #dc3545;
+  background: #fffafa;
+}
+
+.complaint-top-row,
+.complaint-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.complaint-title-row {
+  justify-content: flex-start;
+}
+
+.complaint-title-row h3,
+.complaint-title-row h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #252b33;
+}
+
+.new-label {
+  background: #dc3545;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 5px 9px;
+  border-radius: 4px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 7px 11px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.status-badge.pending {
+  background: #fff3d9;
+  color: #875b08;
+}
+
+.status-badge.in-progress {
+  background: #e9f1ff;
+  color: #2455a5;
+}
+
+.status-badge.resolved {
+  background: #e4f5e9;
+  color: #226a3b;
+}
+
+.complaint-user-details {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f7f8fa;
+  border-radius: 7px;
+}
+
+.complaint-user-details p {
+  font-size: 13px;
+  margin: 7px 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-status-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.admin-status-control label {
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.complaint-date {
+  color: #727b88;
+  font-size: 12px;
+  margin-top: 12px;
+}
+
+.empty-complaints {
+  padding: 35px 10px;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 7px;
+}
+
+.empty-complaints h3 {
+  margin-bottom: 8px;
+}
+
+.empty-complaints p {
+  color: #727b88;
+  font-size: 13px;
+}
+
+.user-complaint-card {
+  margin-top: 15px;
+}
+
+.user-complaint-card .complaint-date {
+  margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+  .dashboard-header {
+    padding: 16px 5%;
+  }
+
+  .dashboard-content {
+    width: 92%;
+    margin: 20px auto;
+  }
+
+  .dashboard-panel {
+    padding: 17px;
+  }
+
+  .complaint-filters {
+    flex-direction: column;
+  }
+
+  .complaint-filters input,
+  .complaint-filters select {
+    width: 100%;
+  }
+
+  .admin-status-control {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-status-control select {
+    width: 100%;
+  }
+
+  .complaint-top-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+/* Better spacing on Login page */
+.login-card h1,
+.login-card h2 {
+  margin-bottom: 14px;
+}
+
+.login-card p {
+  margin-top: 0;
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-card label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.login-card input {
+  margin-top: 5px;
+}
+
+.login-card button {
+  margin-top: 8px;
+}
+
