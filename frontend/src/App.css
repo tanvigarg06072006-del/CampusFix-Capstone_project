@@ -848,3 +848,33 @@ tbody tr:hover {
     width: 240px;
   }
 }
+.login-page .login-card form {
+  margin-top: 30px !important;
+}
+
+/* Description spacing */
+.login-page .login-card > p {
+  display: block;
+  margin-bottom: 0 !important;
+  line-height: 1.6;
+}
+
+/* Email and password labels */
+.login-page .login-card form label {
+  display: block;
+  margin-top: 0 !important;
+  margin-bottom: 22px !important;
+  line-height: 1.5;
+}
+
+/* Input spacing */
+.login-page .login-card form label input {
+  margin-top: 10px !important;
+}
+
+/* Mobile adjustment */
+@media (max-width: 600px) {
+  .login-page .login-card form {
+    margin-top: 24px !important;
+  }
+}
