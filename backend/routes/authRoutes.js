@@ -1,3 +1,5 @@
+const admin = require("../firebaseAdmin");
+const { authenticateToken } = require("../middleware/auth");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -89,6 +91,56 @@ router.post("/login", async (req, res) => {
 
 router.get("/me", authenticateToken, (req, res) => {
     res.json({ user: req.user });
+});
+
+router.post("/sync", authenticateToken, async (req, res) => {
+    try {
+        const firebaseUser = req.firebaseUser;
+
+        if (!firebaseUser.email) {
+            return res.status(400).json({
+                message: "Firebase account has no email"
+            });
+        }
+
+        const name =
+            firebaseUser.name ||
+            firebaseUser.email.split("@")[0];
+
+        const role = firebaseUser.admin === true ? "admin" : "student";
+
+        const existing = await pool.query(
+            `SELECT id FROM users WHERE firebase_uid = $1 OR email = $2 LIMIT 1`,
+            [firebaseUser.uid, firebaseUser.email.toLowerCase()]
+        );
+
+        let result;
+
+        if (existing.rows.length) {
+            result = await pool.query(
+                `UPDATE users
+                 SET firebase_uid = $1, name = $2, updated_at = NOW()
+                 WHERE id = $3
+                 RETURNING id, name, email, role, firebase_uid`,
+                [firebaseUser.uid, name, existing.rows[0].id]
+            );
+        } else {
+            result = await pool.query(
+                `INSERT INTO users (name, email, role, firebase_uid)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING id, name, email, role, firebase_uid`,
+                [name, firebaseUser.email.toLowerCase(), role, firebaseUser.uid]
+            );
+        }
+
+        res.json({
+            message: "Firebase user synchronized with Supabase",
+            user: result.rows[0]
+        });
+    } catch (error) {
+        console.error("User sync error:", error.message);
+        res.status(500).json({ message: "User synchronization failed" });
+    }
 });
 
 module.exports = router;
