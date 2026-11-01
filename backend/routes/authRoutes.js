@@ -1,9 +1,7 @@
-const admin = require("../firebaseAdmin");
-const { authenticateToken } = require("../middleware/auth");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const pool = require("../db");
+const pool = require("../supabase");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
