@@ -1,29 +1,35 @@
-const jwt = require("jsonwebtoken");
+const admin = require("../firebaseAdmin");
 const pool = require("../db");
 
 async function authenticateToken(req, res, next) {
     const header = req.headers.authorization;
-    const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    const token = header?.startsWith("Bearer ")
+        ? header.slice(7)
+        : null;
 
     if (!token) {
-        return res.status(401).json({ message: "Authentication required" });
+        return res.status(401).json({
+            message: "Firebase token required"
+        });
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = await admin.auth().verifyIdToken(token);
+
         const result = await pool.query(
-            "SELECT id, name, email, role FROM users WHERE id = $1",
-            [decoded.id]
+            `SELECT id, name, email, role
+             FROM users
+             WHERE firebase_uid = $1`,
+            [decoded.uid]
         );
 
-        if (!result.rows.length) {
-            return res.status(401).json({ message: "Invalid user" });
-        }
+        req.firebaseUser = decoded;
+        req.user = result.rows[0] || null;
 
-        req.user = result.rows[0];
         next();
-    } catch {
-        return res.status(401).json({ message: "Invalid or expired token" });
+    } catch (error) {
+        console.error("Firebase authentication error:", error.message);
+        res.status(401).json({ message: "Invalid Firebase token" });
     }
 }
 
