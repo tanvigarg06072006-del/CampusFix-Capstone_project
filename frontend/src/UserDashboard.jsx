@@ -5,8 +5,7 @@ import { auth } from "../firebase";
 
 import {
   getComplaints,
-  addComplaint,
-  subscribeToComplaints
+  addComplaint
 } from "../utils/complaints";
 
 function UserDashboard() {
@@ -15,47 +14,51 @@ function UserDashboard() {
   const [complaintDescription, setComplaintDescription] = useState("");
   const [message, setMessage] = useState("");
 
-  const userEmail = auth.currentUser?.email || "";
+
   const userName =
     sessionStorage.getItem("campusfixUserName") || "Student";
 
   useEffect(() => {
-    setComplaints(getComplaints());
+  const loadComplaints = async () => {
+    try {
+      const data = await getComplaints();
+      setComplaints(data);
+    } catch (error) {
+      console.error("Loading complaints error:", error);
+      setMessage(error.message);
+    }
+  };
 
-    const unsubscribe = subscribeToComplaints((updatedComplaints) => {
-      setComplaints(updatedComplaints);
+  loadComplaints();
+}, []);
+
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+  setMessage("");
+
+  if (!complaintTitle.trim() || !complaintDescription.trim()) {
+    setMessage("Please fill in all complaint details.");
+    return;
+  }
+
+  try {
+    await addComplaint({
+      title: complaintTitle.trim(),
+      description: complaintDescription.trim()
     });
 
-    return () => unsubscribe();
-  }, []);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setMessage("");
-
-    if (!complaintTitle.trim() || !complaintDescription.trim()) {
-      setMessage("Please fill in all complaint details.");
-      return;
-    }
-
-    const newComplaint = {
-      id: Date.now(),
-      title: complaintTitle.trim(),
-      description: complaintDescription.trim(),
-      userName: userName,
-      userEmail: userEmail,
-      status: "Pending",
-      isNew: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    addComplaint(newComplaint);
+    const updatedComplaints = await getComplaints();
+    setComplaints(updatedComplaints);
 
     setComplaintTitle("");
     setComplaintDescription("");
+
     setMessage("Your complaint has been submitted successfully!");
-  };
+  } catch (error) {
+    console.error("Complaint submission error:", error);
+    setMessage(error.message || "Could not submit complaint.");
+  }
+};
 
   const handleLogout = async () => {
     try {
@@ -66,10 +69,7 @@ function UserDashboard() {
     }
   };
 
-  const myComplaints = complaints.filter(
-    (complaint) =>
-      complaint.userEmail?.toLowerCase() === userEmail.toLowerCase()
-  );
+  const myComplaints = complaints;
 
   const formatDate = (date) => {
     if (!date) return "Not available";

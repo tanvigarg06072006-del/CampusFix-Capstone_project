@@ -1,5 +1,6 @@
-const admin = require("../firebaseAdmin");
-const pool = require("../db");
+
+const { auth } = require("../firebaseAdmin");
+const pool = require("../supabase");
 
 async function authenticateToken(req, res, next) {
     const header = req.headers.authorization;
@@ -14,29 +15,39 @@ async function authenticateToken(req, res, next) {
     }
 
     try {
-        const decoded = await admin.auth().verifyIdToken(token);
+        const decoded = await auth.verifyIdToken(token);
 
         const result = await pool.query(
             `SELECT id, name, email, role
-             FROM users
+             FROM public.users
              WHERE firebase_uid = $1`,
             [decoded.uid]
         );
 
+        if (!result.rows.length) {
+            return res.status(404).json({
+                message: "User not found in database"
+            });
+        }
+
         req.firebaseUser = decoded;
-        req.user = result.rows[0] || null;
+        req.user = result.rows[0];
 
         next();
     } catch (error) {
         console.error("Firebase authentication error:", error.message);
-        res.status(401).json({ message: "Invalid Firebase token" });
+        return res.status(401).json({
+            message: "Invalid Firebase token"
+        });
     }
 }
 
 function requireRole(...roles) {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {
-            return res.status(403).json({ message: "Access denied" });
+            return res.status(403).json({
+                message: "Access denied"
+            });
         }
         next();
     };

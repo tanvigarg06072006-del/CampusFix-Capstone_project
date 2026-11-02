@@ -25,20 +25,29 @@ router.get("/", async (req, res) => {
         const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
 
         const result = await pool.query(
-            `SELECT i.*, u.name AS reporter_name, a.name AS assignee_name
+            `SELECT i.*,
+        u.name AS reporter_name,
+        u.email AS reporter_email,
+        a.name AS assignee_name
              FROM issues i
              JOIN users u ON u.id = i.reported_by
              LEFT JOIN users a ON a.id = i.assigned_to
              WHERE ($1::text IS NULL OR i.status = $1)
-               AND ($2::text IS NULL OR i.category = $2)
+  AND ($2::text IS NULL OR i.category = $2)
+  AND (
+      $3::text IN ('staff', 'admin')
+      OR i.reported_by = $4
+  )
              ORDER BY i.created_at DESC
-             LIMIT $3 OFFSET $4`,
+             LIMIT $5 OFFSET $6`,
             [
-                req.query.status || null,
-                req.query.category || null,
-                limit,
-                (page - 1) * limit
-            ]
+    req.query.status || null,
+    req.query.category || null,
+    req.user.role,
+    req.user.id,
+    limit,
+    (page - 1) * limit
+]
         );
 
         res.json({ page, limit, issues: result.rows });
@@ -51,7 +60,10 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT i.*, u.name AS reporter_name, a.name AS assignee_name
+            `SELECT i.*,
+        u.name AS reporter_name,
+        u.email AS reporter_email,
+        a.name AS assignee_name
              FROM issues i
              JOIN users u ON u.id = i.reported_by
              LEFT JOIN users a ON a.id = i.assigned_to

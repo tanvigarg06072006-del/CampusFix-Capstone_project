@@ -4,53 +4,57 @@ import { useNavigate } from "react-router-dom";
 
 import {
   getComplaints,
-  addComplaint,
-  subscribeToComplaints
+  addComplaint
 } from "../utils/complaints";
 
 export default function UserDashboard() {
   const navigate = useNavigate();
 
   const [complaint, setComplaint] = useState("");
-  const [complaints, setComplaints] = useState(getComplaints());
+  const [complaints, setComplaints] = useState([]);
   const [message, setMessage] = useState("");
 
-  const userEmail = sessionStorage.getItem("campusfixUserEmail");
   const userName = sessionStorage.getItem("campusfixUserName");
 
   useEffect(() => {
-    const unsubscribe = subscribeToComplaints(setComplaints);
-    return unsubscribe;
+    async function loadComplaints() {
+      try {
+        const data = await getComplaints();
+        setComplaints(data);
+      } catch (error) {
+        console.error(error);
+        setMessage(error.message);
+      }
+    }
+
+    loadComplaints();
   }, []);
 
-  const myComplaints = complaints.filter(
-    (item) => item.userEmail === userEmail
-  );
+  const myComplaints = complaints;
 
-  function submitComplaint(e) {
+  async function submitComplaint(e) {
     e.preventDefault();
 
     if (!complaint.trim()) {
-      setMessage("Please describe your complaint.");
+      setMessage("Please enter a complaint.");
       return;
     }
 
-    const newComplaint = {
-      id: crypto.randomUUID(),
-      title: complaint.trim(),
-      description: complaint.trim(),
-      userName: userName || "Student",
-      userEmail: userEmail,
-      status: "Pending",
-      isNew: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    try {
+      await addComplaint({
+        title: complaint.trim().slice(0, 100),
+        description: complaint.trim()
+      });
 
-    addComplaint(newComplaint);
+      const data = await getComplaints();
+      setComplaints(data);
 
-    setComplaint("");
-    setMessage("Your complaint has been submitted successfully!");
+      setComplaint("");
+      setMessage("Your complaint has been submitted successfully!");
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Could not submit complaint.");
+    }
   }
 
   function logout() {
@@ -59,6 +63,8 @@ export default function UserDashboard() {
   }
 
   function formatDate(dateString) {
+    if (!dateString) return "Not available";
+
     const date = new Date(dateString);
 
     return date.toLocaleDateString("en-IN", {
@@ -154,3 +160,4 @@ export default function UserDashboard() {
     </div>
   );
 }
+

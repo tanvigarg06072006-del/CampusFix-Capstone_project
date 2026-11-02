@@ -7,31 +7,44 @@ import { useNavigate } from "react-router-dom";
 
 import {
   getComplaints,
-  updateComplaint,
-  subscribeToComplaints
+  updateComplaint
 } from "./utils/complaints";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
-  const [complaints, setComplaints] = useState(getComplaints());
+  const [complaints, setComplaints] = useState([]);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const unsubscribe = subscribeToComplaints(setComplaints);
-    return unsubscribe;
+    async function loadComplaints() {
+      try {
+        const data = await getComplaints();
+        setComplaints(data);
+      } catch (error) {
+        console.error("Could not load complaints:", error);
+      }
+    }
+
+    loadComplaints();
   }, []);
 
-  function changeStatus(id, status) {
-    updateComplaint(id, {
-      status,
-      isNew: false,
-      updatedAt: new Date().toISOString()
-    });
+  async function changeStatus(id, status) {
+    try {
+      await updateComplaint(id, { status });
+
+      const data = await getComplaints();
+      setComplaints(data);
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "Could not update complaint status.");
+    }
   }
 
   function formatDate(dateString) {
+    if (!dateString) return "Not available";
+
     return new Date(dateString).toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "long",
@@ -41,12 +54,15 @@ export default function AdminDashboard() {
   }
 
   const newCount = complaints.filter(c => c.isNew).length;
+
   const pendingCount = complaints.filter(
     c => c.status === "Pending"
   ).length;
+
   const progressCount = complaints.filter(
     c => c.status === "In Progress"
   ).length;
+
   const resolvedCount = complaints.filter(
     c => c.status === "Resolved"
   ).length;
@@ -57,17 +73,24 @@ export default function AdminDashboard() {
       (filter === "New" && item.isNew) ||
       item.status === filter;
 
+    const searchText = search.toLowerCase();
+
     const matchesSearch =
-      item.title.toLowerCase().includes(search.toLowerCase()) ||
-      item.userName.toLowerCase().includes(search.toLowerCase()) ||
-      item.userEmail.toLowerCase().includes(search.toLowerCase());
+      (item.title || "").toLowerCase().includes(searchText) ||
+      (item.userName || "").toLowerCase().includes(searchText) ||
+      (item.userEmail || "").toLowerCase().includes(searchText);
 
     return matchesFilter && matchesSearch;
   });
 
-  function logout() {
-    sessionStorage.clear();
-    navigate("/");
+  async function logout() {
+    try {
+      await signOut(auth);
+      sessionStorage.clear();
+      navigate("/");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   }
 
   return (

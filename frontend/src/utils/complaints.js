@@ -1,48 +1,103 @@
 
-const STORAGE_KEY = "campusfixComplaints";
+import { auth } from "../firebase";
 
-export function getComplaints() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch {
-    return [];
+const API_URL = "http://localhost:5000/api/issues";
+
+async function getAuthHeaders() {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("Please log in again.");
   }
-}
 
-export function saveComplaints(complaints) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(complaints));
+  const token = await user.getIdToken();
 
-  // Notify components in the same browser tab
-  window.dispatchEvent(new Event("campusfix-complaints-updated"));
-}
-
-export function addComplaint(complaint) {
-  const complaints = getComplaints();
-  complaints.unshift(complaint);
-  saveComplaints(complaints);
-}
-
-export function updateComplaint(id, updates) {
-  const complaints = getComplaints().map((item) =>
-    item.id === id
-      ? { ...item, ...updates }
-      : item
-  );
-
-  saveComplaints(complaints);
-}
-
-export function subscribeToComplaints(callback) {
-  const handleUpdate = () => callback(getComplaints());
-
-  window.addEventListener("storage", handleUpdate);
-  window.addEventListener("campusfix-complaints-updated", handleUpdate);
-
-  return () => {
-    window.removeEventListener("storage", handleUpdate);
-    window.removeEventListener(
-      "campusfix-complaints-updated",
-      handleUpdate
-    );
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`
   };
 }
+
+function formatStatus(status) {
+  return status
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export async function getComplaints() {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch(`${API_URL}?limit=100`, {
+    headers
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not load complaints");
+  }
+
+  return data.issues.map((issue) => ({
+    id: issue.id,
+    title: issue.title,
+    description: issue.description,
+    status: formatStatus(issue.status),
+    createdAt: issue.created_at,
+    updatedAt: issue.updated_at,
+    userName: issue.reporter_name || "Student",
+    userEmail: issue.reporter_email || ""
+  }));
+}
+
+export async function addComplaint(complaint) {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      title: complaint.title,
+      description: complaint.description,
+      category: "Other",
+      priority: "MEDIUM",
+      location: "Not specified"
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not submit complaint");
+  }
+
+  return data.issue;
+}
+
+export async function updateComplaint(id, updates) {
+  const headers = await getAuthHeaders();
+
+  const statusMap = {
+    "Pending": "PENDING",
+    "In Progress": "IN_PROGRESS",
+    "Resolved": "RESOLVED"
+  };
+
+  const response = await fetch(`${API_URL}/${id}/status`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      status: statusMap[updates.status] || updates.status
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not update complaint");
+  }
+
+  return data.issue;
+}
+
+
