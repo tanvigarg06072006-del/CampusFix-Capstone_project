@@ -4,7 +4,9 @@ import { useNavigate } from "react-router-dom";
 
 import {
   getComplaints,
-  addComplaint
+  addComplaint,
+  getCommunityIssues,
+  voteForIssue
 } from "../utils/complaints";
 
 export default function UserDashboard() {
@@ -12,25 +14,38 @@ export default function UserDashboard() {
 
   const [complaint, setComplaint] = useState("");
   const [complaints, setComplaints] = useState([]);
+  const [communityIssues, setCommunityIssues] = useState([]);
   const [message, setMessage] = useState("");
+  const [communityMessage, setCommunityMessage] = useState("");
+  const [votingId, setVotingId] = useState(null);
 
   const userName = sessionStorage.getItem("campusfixUserName");
 
   useEffect(() => {
-    async function loadComplaints() {
+    async function loadDashboard() {
       try {
-        const data = await getComplaints();
-        setComplaints(data);
+        const [myData, communityData] = await Promise.all([
+          getComplaints(),
+          getCommunityIssues()
+        ]);
+
+        setComplaints(myData);
+        setCommunityIssues(communityData);
       } catch (error) {
         console.error(error);
         setMessage(error.message);
       }
     }
 
-    loadComplaints();
+    loadDashboard();
   }, []);
 
   const myComplaints = complaints;
+
+  // Identify complaints submitted by the current student
+  const myComplaintIds = new Set(
+    myComplaints.map((item) => String(item.id))
+  );
 
   async function submitComplaint(e) {
     e.preventDefault();
@@ -46,14 +61,47 @@ export default function UserDashboard() {
         description: complaint.trim()
       });
 
-      const data = await getComplaints();
-      setComplaints(data);
+      const [myData, communityData] = await Promise.all([
+        getComplaints(),
+        getCommunityIssues()
+      ]);
+
+      setComplaints(myData);
+      setCommunityIssues(communityData);
 
       setComplaint("");
       setMessage("Your complaint has been submitted successfully!");
     } catch (error) {
       console.error(error);
       setMessage(error.message || "Could not submit complaint.");
+    }
+  }
+
+  async function handleVote(issueId) {
+    try {
+      setVotingId(issueId);
+      setCommunityMessage("");
+
+      const result = await voteForIssue(issueId);
+
+      setCommunityIssues((previous) =>
+        previous.map((issue) =>
+          String(issue.id) === String(issueId)
+            ? {
+                ...issue,
+                voteCount: Number(result.vote_count),
+                hasVoted: true
+              }
+            : issue
+        )
+      );
+
+      setCommunityMessage("Your support has been recorded!");
+    } catch (error) {
+      console.error(error);
+      setCommunityMessage(error.message || "Could not record your support.");
+    } finally {
+      setVotingId(null);
     }
   }
 
@@ -82,6 +130,7 @@ export default function UserDashboard() {
           <h1>CampusFix</h1>
           <p>User Dashboard</p>
         </div>
+
         <button onClick={logout} className="logout-button">
           Logout
         </button>
@@ -134,6 +183,7 @@ export default function UserDashboard() {
               <div className="user-complaint-card" key={item.id}>
                 <div className="complaint-title-row">
                   <h4>{item.title}</h4>
+
                   <span className={`status-badge ${
                     item.status === "Resolved"
                       ? "resolved"
@@ -156,8 +206,76 @@ export default function UserDashboard() {
             ))
           )}
         </section>
+
+        {/* Community Issues Section */}
+        <section className="dashboard-panel">
+          <div className="panel-heading">
+            <h3>Community Issues</h3>
+            <span>{communityIssues.length} Open Issues</span>
+          </div>
+
+          <p>
+            Facing the same problem as another student?
+            Support their complaint to let the administration know.
+          </p>
+
+          {communityMessage && (
+            <p className="success-message">{communityMessage}</p>
+          )}
+
+          {communityIssues.length === 0 ? (
+            <div className="empty-complaints">
+              <h3>No community issues available</h3>
+              <p>New open complaints from students will appear here.</p>
+            </div>
+          ) : (
+            communityIssues.map((item) => {
+              const isMine = myComplaintIds.has(String(item.id));
+
+              return (
+                <div className="user-complaint-card" key={item.id}>
+                  <div className="complaint-title-row">
+                    <h4>{item.title}</h4>
+
+                    <span className={`status-badge ${
+                      item.status === "In Progress"
+                        ? "in-progress"
+                        : "pending"
+                    }`}>
+                      {item.status}
+                    </span>
+                  </div>
+
+                  <p>{item.description}</p>
+
+                  <p className="complaint-date">
+                    Reported by: {item.userName}
+                  </p>
+
+                  <p className="complaint-date">
+                    {item.voteCount} students facing this too
+                  </p>
+
+                  <button
+                    type="button"
+                    className="primary-action"
+                    disabled={isMine || item.hasVoted || votingId === item.id}
+                    onClick={() => handleVote(item.id)}
+                  >
+                    {isMine
+                      ? "Your Complaint"
+                      : item.hasVoted
+                      ? "✓ You're Supporting This"
+                      : votingId === item.id
+                      ? "Recording Support..."
+                      : "I'm Facing This Too"}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </section>
       </main>
     </div>
   );
 }
-
