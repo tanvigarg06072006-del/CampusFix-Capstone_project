@@ -18,17 +18,30 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    async function loadComplaints() {
-      try {
-        const data = await getComplaints();
-        setComplaints(data);
-      } catch (error) {
-        console.error("Could not load complaints:", error);
-      }
-    }
+  let isMounted = true;
 
-    loadComplaints();
-  }, []);
+  const loadComplaints = async () => {
+    try {
+      const data = await getComplaints();
+
+      if (isMounted) {
+        setComplaints(data);
+      }
+    } catch (error) {
+      console.error("Error loading complaints:", error);
+    }
+  };
+
+  loadComplaints();
+
+  // Automatically check for new complaints every 5 seconds
+  const intervalId = setInterval(loadComplaints, 5000);
+
+  return () => {
+    isMounted = false;
+    clearInterval(intervalId);
+  };
+}, []);
 
   async function changeStatus(id, status) {
     try {
@@ -53,7 +66,9 @@ export default function AdminDashboard() {
     });
   }
 
-  const newCount = complaints.filter(c => c.isNew).length;
+  const newCount = complaints.filter(
+  (complaint) => complaint.status === "Pending"
+).length;
 
   const pendingCount = complaints.filter(
     c => c.status === "Pending"
@@ -70,7 +85,7 @@ export default function AdminDashboard() {
   const filteredComplaints = complaints.filter((item) => {
     const matchesFilter =
       filter === "All" ||
-      (filter === "New" && item.isNew) ||
+      (filter === "New" && item.status === "Pending") ||
       item.status === filter;
 
     const searchText = search.toLowerCase();
@@ -178,17 +193,17 @@ export default function AdminDashboard() {
                 <div
                   key={item.id}
                   className={`admin-complaint-card ${
-                    item.isNew ? "new-complaint" : ""
-                  }`}
+  item.status === "Pending" ? "new-complaint" : ""
+}`}
                 >
                   <div className="complaint-top-row">
                     <div>
                       <div className="complaint-title-row">
                         <h3>{item.title}</h3>
 
-                        {item.isNew && (
-                          <span className="new-label">NEW</span>
-                        )}
+                        {item.status === "Pending" && (
+  <span className="new-label">NEW</span>
+)}
                       </div>
 
                       <p className="complaint-date">
