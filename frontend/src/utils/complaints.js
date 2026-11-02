@@ -29,8 +29,9 @@ export async function getComplaints() {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`${API_URL}?limit=100`, {
-    headers
-  });
+  headers,
+  cache: "no-store"
+});
 
   const data = await response.json();
 
