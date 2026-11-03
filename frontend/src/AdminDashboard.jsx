@@ -18,6 +18,7 @@ export default function AdminDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [expandedPhoto, setExpandedPhoto] = useState(null);
 
   useEffect(() => {
   let isMounted = true;
@@ -319,6 +320,37 @@ export default function AdminDashboard() {
     {(item.voteCount || 0) === 1 ? "student is" : "students are"} facing this too
   </p>
 </div>
+
+{item.photoUrl && (
+  <div className="complaint-photo">
+    <button
+      type="button"
+      onClick={() => {
+        setExpandedPhoto(
+          expandedPhoto === item.id ? null : item.id
+        );
+      }}
+    >
+      {expandedPhoto === item.id ? "Hide Photo" : "View Photo"}
+    </button>
+
+    {expandedPhoto === item.id && (
+      <div style={{ marginTop: "12px" }}>
+        <img
+          src={item.photoUrl}
+          alt="Student's complaint"
+          style={{
+            width: "100%",
+            maxWidth: "350px",
+            maxHeight: "300px",
+            objectFit: "contain",
+            borderRadius: "8px"
+          }}
+        />
+      </div>
+    )}
+  </div>
+)}
 
                   <div className="admin-status-control">
                     <label htmlFor={`status-${item.id}`}>

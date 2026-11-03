@@ -13,9 +13,8 @@ async function getAuthHeaders() {
   const token = await user.getIdToken();
 
   return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`
-  };
+  Authorization: `Bearer ${token}`
+};
 }
 
 function formatStatus(status) {
@@ -48,24 +47,32 @@ export async function getComplaints() {
     updatedAt: issue.updated_at,
     userName: issue.reporter_name || "Student",
 userEmail: issue.reporter_email || "",
-voteCount: Number(issue.vote_count || 0)
+voteCount: Number(issue.vote_count || 0),
+photoUrl: issue.photoUrl || null,
   }));
 }
 
 export async function addComplaint(complaint) {
   const headers = await getAuthHeaders();
+  const formData = new FormData();
+
+  formData.append("title", complaint.title);
+  formData.append("description", complaint.description);
+  formData.append("category", "Other");
+  formData.append("priority", "MEDIUM");
+  formData.append("location", "Not specified");
+
+  if (complaint.photo) {
+    formData.append("photo", complaint.photo);
+  }
 
   const response = await fetch(API_URL, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      title: complaint.title,
-      description: complaint.description,
-      category: "Other",
-      priority: "MEDIUM",
-      location: "Not specified"
-    })
+    body: formData
   });
+
+  
 
   const data = await response.json();
 
@@ -132,12 +139,15 @@ export async function updateComplaint(id, updates) {
   };
 
   const response = await fetch(`${API_URL}/${id}/status`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify({
-      status: statusMap[updates.status] || updates.status
-    })
-  });
+  method: "PATCH",
+  headers: {
+    ...headers,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    status: statusMap[updates.status] || updates.status
+  })
+});
 
   const data = await response.json();
 

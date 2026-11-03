@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -15,6 +14,9 @@ export default function UserDashboard() {
   const navigate = useNavigate();
 
   const [complaint, setComplaint] = useState("");
+  const [photo, setPhoto] = useState(null);
+const [photoPreview, setPhotoPreview] = useState(null);
+const photoInputRef = useRef(null);
   const [complaints, setComplaints] = useState([]);
   const [communityIssues, setCommunityIssues] = useState([]);
   const [message, setMessage] = useState("");
@@ -72,14 +74,46 @@ useEffect(() => {
   };
 }, []);
 
-  const myComplaints = complaints;
+  useEffect(() => {
+  if (!photoPreview) return;
+
+  return () => URL.revokeObjectURL(photoPreview);
+}, [photoPreview]);
+const myComplaints = complaints;
 
   // Identify complaints submitted by the current student
   const myComplaintIds = new Set(
     myComplaints.map((item) => String(item.id))
   );
 
-  async function submitComplaint(e) {
+  function handlePhotoChange(e) {
+  const selectedFile = e.target.files?.[0];
+
+  if (!selectedFile) {
+    setPhoto(null);
+    setPhotoPreview(null);
+    return;
+  }
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+  if (!allowedTypes.includes(selectedFile.type)) {
+    setMessage("Please select a JPG, PNG or WEBP image.");
+    e.target.value = "";
+    return;
+  }
+
+  if (selectedFile.size > 5 * 1024 * 1024) {
+    setMessage("Image size must be less than 5 MB.");
+    e.target.value = "";
+    return;
+  }
+
+  setPhoto(selectedFile);
+  setPhotoPreview(URL.createObjectURL(selectedFile));
+  setMessage("");
+}
+async function submitComplaint(e) {
     e.preventDefault();
 
     if (!complaint.trim()) {
@@ -89,9 +123,10 @@ useEffect(() => {
 
     try {
       await addComplaint({
-        title: complaint.trim().slice(0, 100),
-        description: complaint.trim()
-      });
+  title: complaint.trim().slice(0, 100),
+  description: complaint.trim(),
+  photo: photo
+});
 
       const [myData, communityData] = await Promise.all([
         getComplaints(),
@@ -102,6 +137,12 @@ useEffect(() => {
       setCommunityIssues(communityData);
 
       setComplaint("");
+      setPhoto(null);
+setPhotoPreview(null);
+
+if (photoInputRef.current) {
+  photoInputRef.current.value = "";
+}
       setMessage("Your complaint has been submitted successfully!");
     } catch (error) {
       console.error(error);
@@ -237,6 +278,47 @@ useEffect(() => {
               rows="4"
               required
             />
+
+                        <label htmlFor="complaint-photo">
+              Attach a photo (optional)
+            </label>
+
+            <input
+              ref={photoInputRef}
+              id="complaint-photo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handlePhotoChange}
+            />
+
+            {photoPreview && (
+              <div>
+                <p>Photo preview:</p>
+                <img
+                  src={photoPreview}
+                  alt="Complaint preview"
+                  style={{
+                    width: "200px",
+                    maxHeight: "200px",
+                    objectFit: "cover",
+                    borderRadius: "8px"
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhoto(null);
+                    setPhotoPreview(null);
+                    if (photoInputRef.current) {
+                      photoInputRef.current.value = "";
+                    }
+                  }}
+                >
+                  Remove Photo
+                </button>
+              </div>
+            )}
 
             <button type="submit" className="primary-action">
               Submit Complaint
