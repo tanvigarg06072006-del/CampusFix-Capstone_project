@@ -47,8 +47,8 @@ export async function getComplaints() {
     createdAt: issue.created_at,
     updatedAt: issue.updated_at,
     userName: issue.reporter_name || "Student",
-    userEmail: issue.reporter_email || "",
-    voteCount: Number(issue.vote_count || 0)
+userEmail: issue.reporter_email || "",
+voteCount: Number(issue.vote_count || 0)
   }));
 }
 
@@ -146,4 +146,44 @@ export async function updateComplaint(id, updates) {
   }
 
   return data.issue;
+}
+const NOTIFICATIONS_API_URL = "http://localhost:5000/api/notifications";
+
+// Fetch notifications for the logged-in user
+export async function getNotifications() {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch(NOTIFICATIONS_API_URL, {
+    headers,
+    cache: "no-store"
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not load notifications");
+  }
+
+  return data.notifications;
+}
+
+// Mark a notification as read
+export async function markNotificationRead(id) {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch(
+    `${NOTIFICATIONS_API_URL}/${id}/read`,
+    {
+      method: "PATCH",
+      headers
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not mark notification as read");
+  }
+
+  return data;
 }

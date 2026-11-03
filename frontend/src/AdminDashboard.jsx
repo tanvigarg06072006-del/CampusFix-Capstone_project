@@ -7,13 +7,15 @@ import { useNavigate } from "react-router-dom";
 
 import {
   getComplaints,
-  updateComplaint
+  updateComplaint,
+  getNotifications,
+  markNotificationRead
 } from "./utils/complaints";
-
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const [complaints, setComplaints] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
 
@@ -43,6 +45,32 @@ export default function AdminDashboard() {
   };
 }, []);
 
+  // Fetch notifications every 5 seconds
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadNotifications = async () => {
+      try {
+        const data = await getNotifications();
+
+        if (isMounted) {
+          setNotifications(data);
+        }
+      } catch (error) {
+        console.error("Error loading notifications:", error);
+      }
+    };
+
+    loadNotifications();
+
+    const intervalId = setInterval(loadNotifications, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
   async function changeStatus(id, status) {
     try {
       await updateComplaint(id, { status });
@@ -54,6 +82,22 @@ export default function AdminDashboard() {
       alert(error.message || "Could not update complaint status.");
     }
   }
+  async function handleNotificationRead(id) {
+  try {
+    await markNotificationRead(id);
+
+    setNotifications((previous) =>
+      previous.map((notification) =>
+        notification.id === id
+          ? { ...notification, is_read: true }
+          : notification
+      )
+    );
+  } catch (error) {
+    console.error("Could not mark notification as read:", error);
+  }
+}
+  
 
   function formatDate(dateString) {
     if (!dateString) return "Not available";
@@ -81,6 +125,10 @@ export default function AdminDashboard() {
   const resolvedCount = complaints.filter(
     c => c.status === "Resolved"
   ).length;
+
+  const unreadCount = notifications.filter(
+  (notification) => !notification.is_read
+).length;
 
   const filteredComplaints = complaints.filter((item) => {
     const matchesFilter =
@@ -126,6 +174,44 @@ export default function AdminDashboard() {
           <h2>Administrator Panel</h2>
           <p>Manage, monitor and resolve campus complaints.</p>
         </div>
+        <section className="dashboard-panel">
+  <div className="panel-heading">
+    <div>
+      <h3>Notifications ({unreadCount} unread)</h3>
+      <p>Updates about new campus complaints.</p>
+    </div>
+  </div>
+
+  {notifications.filter((notification) => !notification.is_read).length === 0 ? (
+  <p>No unread notifications.</p>
+  ) : (
+    notifications
+  .filter((notification) => !notification.is_read)
+  .map((notification) => (
+      <div
+        key={notification.id}
+        className="admin-complaint-card"
+      >
+        <h4>{notification.title || "Notification"}</h4>
+        <p>{notification.message}</p>
+
+        <p className="complaint-date">
+          {new Date(notification.created_at).toLocaleString("en-IN")}
+        </p>
+
+        {!notification.is_read ? (
+          <button
+            onClick={() => handleNotificationRead(notification.id)}
+          >
+            Mark as read
+          </button>
+        ) : (
+          <span>Read</span>
+        )}
+      </div>
+    ))
+  )}
+</section>
 
         <section className="admin-stats">
           <div className="stat-card new-stat">
