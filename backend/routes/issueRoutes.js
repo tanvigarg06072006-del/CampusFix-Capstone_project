@@ -152,7 +152,34 @@ router.post("/", async (req, res) => {
             ]
         );
 
-        res.status(201).json({ message: "Issue created", issue: result.rows[0] });
+        const newIssue = result.rows[0];
+
+// Notify all admins and staff
+try {
+    await pool.query(
+        `INSERT INTO notifications
+            (user_id, issue_id, title, message, type)
+         SELECT
+            id,
+            $1,
+            'New Complaint Received',
+            $2,
+            'new_complaint'
+         FROM users
+         WHERE role IN ('admin', 'staff')`,
+        [
+            newIssue.id,
+            `A new complaint "${newIssue.title}" has been submitted.`
+        ]
+    );
+} catch (notificationError) {
+    console.error("Notification creation failed:", notificationError.message);
+}
+
+res.status(201).json({
+    message: "Issue created",
+    issue: newIssue
+});
     } catch (error) {
         console.error(error.message);
         res.status(500).json({ message: "Could not create issue" });
@@ -224,6 +251,21 @@ router.patch("/:id/status", requireRole("staff", "admin"), async (req, res) => {
             return res.status(400).json({ message: "Invalid issue status" });
         }
 
+        // Find the complaint and its owner
+        const existing = await pool.query(
+            `SELECT id, reported_by, title, status
+             FROM issues
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        if (!existing.rows.length) {
+            return res.status(404).json({ message: "Issue not found" });
+        }
+
+        const oldIssue = existing.rows[0];
+
+        // Update complaint status
         const result = await pool.query(
             `UPDATE issues
              SET status = $1, updated_at = NOW()
@@ -232,11 +274,31 @@ router.patch("/:id/status", requireRole("staff", "admin"), async (req, res) => {
             [status, req.params.id]
         );
 
-        if (!result.rows.length) {
-            return res.status(404).json({ message: "Issue not found" });
+        // Create notification only when status actually changes
+        if (oldIssue.status !== status) {
+            try {
+                await pool.query(
+                    `INSERT INTO notifications
+                        (user_id, issue_id, title, message, type)
+                     VALUES ($1, $2, $3, $4, $5)`,
+                    [
+                        oldIssue.reported_by,
+                        oldIssue.id,
+                        "Complaint Status Updated",
+                        `Your complaint "${oldIssue.title}" is now ${status.replace(/_/g, " ")}.`,
+                        "status"
+                    ]
+                );
+            } catch (notificationError) {
+                console.error("Notification creation failed:", notificationError.message);
+            }
         }
 
-        res.json({ message: "Status updated", issue: result.rows[0] });
+        res.json({
+            message: "Status updated",
+            issue: result.rows[0]
+        });
+
     } catch (error) {
         console.error(error.message);
         res.status(500).json({ message: "Could not update status" });

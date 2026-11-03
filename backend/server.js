@@ -6,6 +6,7 @@ const pool = require("./supabase");
 const healthRoutes = require("./routes/healthRoutes");
 const authRoutes = require("./routes/authRoutes");
 const issueRoutes = require("./routes/issueRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 const departmentRoutes = require("./routes/departmentRoutes");
 const commentRoutes = require("./routes/commentRoutes");
 
@@ -17,6 +18,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/issues", issueRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/departments", departmentRoutes);
 app.use("/api/comments", commentRoutes);
 

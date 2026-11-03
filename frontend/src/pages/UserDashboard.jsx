@@ -6,7 +6,9 @@ import {
   getComplaints,
   addComplaint,
   getCommunityIssues,
-  voteForIssue
+  voteForIssue,
+  getNotifications,
+  markNotificationRead
 } from "../utils/complaints";
 
 export default function UserDashboard() {
@@ -18,8 +20,12 @@ export default function UserDashboard() {
   const [message, setMessage] = useState("");
   const [communityMessage, setCommunityMessage] = useState("");
   const [votingId, setVotingId] = useState(null);
+  const [notifications, setNotifications] = useState([]);
 
   const userName = sessionStorage.getItem("campusfixUserName");
+  const unreadCount = notifications.filter(
+  (notification) => !notification.is_read
+).length;
 
   useEffect(() => {
     async function loadDashboard() {
@@ -39,6 +45,32 @@ export default function UserDashboard() {
 
     loadDashboard();
   }, []);
+
+  // Fetch student notifications every 5 seconds
+useEffect(() => {
+  let isMounted = true;
+
+  const loadNotifications = async () => {
+    try {
+      const data = await getNotifications();
+
+      if (isMounted) {
+        setNotifications(data);
+      }
+    } catch (error) {
+      console.error("Error loading notifications:", error);
+    }
+  };
+
+  loadNotifications();
+
+  const intervalId = setInterval(loadNotifications, 5000);
+
+  return () => {
+    isMounted = false;
+    clearInterval(intervalId);
+  };
+}, []);
 
   const myComplaints = complaints;
 
@@ -77,33 +109,49 @@ export default function UserDashboard() {
     }
   }
 
-  async function handleVote(issueId) {
-    try {
-      setVotingId(issueId);
-      setCommunityMessage("");
+ async function handleVote(issueId) {
+  try {
+    setVotingId(issueId);
+    setCommunityMessage("");
 
-      const result = await voteForIssue(issueId);
+    const result = await voteForIssue(issueId);
 
-      setCommunityIssues((previous) =>
-        previous.map((issue) =>
-          String(issue.id) === String(issueId)
-            ? {
-                ...issue,
-                voteCount: Number(result.vote_count),
-                hasVoted: true
-              }
-            : issue
-        )
-      );
+    setCommunityIssues((previous) =>
+      previous.map((issue) =>
+        String(issue.id) === String(issueId)
+          ? {
+              ...issue,
+              voteCount: Number(result.vote_count),
+              hasVoted: true
+            }
+          : issue
+      )
+    );
 
-      setCommunityMessage("Your support has been recorded!");
-    } catch (error) {
-      console.error(error);
-      setCommunityMessage(error.message || "Could not record your support.");
-    } finally {
-      setVotingId(null);
-    }
+    setCommunityMessage("Your support has been recorded!");
+  } catch (error) {
+    console.error(error);
+    setCommunityMessage(error.message || "Could not record your support.");
+  } finally {
+    setVotingId(null);
   }
+}
+
+  async function handleNotificationRead(id) {
+  try {
+    await markNotificationRead(id);
+
+    setNotifications((previous) =>
+      previous.map((notification) =>
+        notification.id === id
+          ? { ...notification, is_read: true }
+          : notification
+      )
+    );
+  } catch (error) {
+    console.error("Could not mark notification as read:", error);
+  }
+}
 
   function logout() {
     sessionStorage.clear();
@@ -141,6 +189,39 @@ export default function UserDashboard() {
           <h2>Welcome, {userName}!</h2>
           <p>Report campus problems and track their progress.</p>
         </div>
+
+        <section className="dashboard-panel">
+  <div className="panel-heading">
+    <h3>Notifications ({unreadCount} unread)</h3>
+  </div>
+
+  {notifications.length === 0 ? (
+    <p>No notifications yet.</p>
+  ) : (
+    notifications
+  .filter((notification) => !notification.is_read)
+  .map((notification) => (
+      <div className="user-complaint-card" key={notification.id}>
+        <h4>{notification.title || "Notification"}</h4>
+        <p>{notification.message}</p>
+
+        <p className="complaint-date">
+          {new Date(notification.created_at).toLocaleString("en-IN")}
+        </p>
+
+        {!notification.is_read ? (
+          <button
+            onClick={() => handleNotificationRead(notification.id)}
+          >
+            Mark as read
+          </button>
+        ) : (
+          <span>Read</span>
+        )}
+      </div>
+    ))
+  )}
+</section>
 
         <section className="dashboard-panel">
           <h3>Submit a Complaint</h3>
