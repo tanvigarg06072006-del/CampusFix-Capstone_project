@@ -47,8 +47,8 @@ export async function getComplaints() {
     createdAt: issue.created_at,
     updatedAt: issue.updated_at,
     userName: issue.reporter_name || "Student",
-userEmail: issue.reporter_email || "",
-voteCount: Number(issue.vote_count || 0)
+    userEmail: issue.reporter_email || "",
+    voteCount: Number(issue.vote_count || 0)
   }));
 }
 
