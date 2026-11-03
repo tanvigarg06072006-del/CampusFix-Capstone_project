@@ -223,10 +223,16 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="complaint-user-details">
-                    <p><strong>Submitted by:</strong> {item.userName}</p>
-                    <p><strong>Email:</strong> {item.userEmail}</p>
-                    <p><strong>Submitted on:</strong> {formatDate(item.createdAt)}</p>
-                  </div>
+  <p><strong>Submitted by:</strong> {item.userName}</p>
+  <p><strong>Email:</strong> {item.userEmail}</p>
+  <p><strong>Submitted on:</strong> {formatDate(item.createdAt)}</p>
+
+  <p>
+    <strong>Community Support:</strong>{" "}
+    {item.voteCount || 0}{" "}
+    {(item.voteCount || 0) === 1 ? "student is" : "students are"} facing this too
+  </p>
+</div>
 
                   <div className="admin-status-control">
                     <label htmlFor={`status-${item.id}`}>
@@ -250,6 +256,7 @@ export default function AdminDashboard() {
                     Last updated: {formatDate(item.updatedAt)}
                   </p>
                 </div>
+                
               ))}
             </div>
           )}
