@@ -28,7 +28,10 @@ router.get("/", async (req, res) => {
             `SELECT i.*,
         u.name AS reporter_name,
         u.email AS reporter_email,
-        a.name AS assignee_name
+a.name AS assignee_name,
+(SELECT COUNT(*)
+ FROM issue_votes iv
+ WHERE iv.issue_id = i.id) AS vote_count
              FROM issues i
              JOIN users u ON u.id = i.reported_by
              LEFT JOIN users a ON a.id = i.assigned_to
@@ -56,6 +59,35 @@ router.get("/", async (req, res) => {
         res.status(500).json({ message: "Could not retrieve issues" });
     }
 });
+
+router.get("/community", async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT i.*,
+                u.name AS reporter_name,
+                (SELECT COUNT(*)
+                 FROM issue_votes iv
+                 WHERE iv.issue_id = i.id) AS vote_count,
+                EXISTS (
+                    SELECT 1
+                    FROM issue_votes iv
+                    WHERE iv.issue_id = i.id
+                    AND iv.user_id = $1
+                ) AS has_voted
+             FROM issues i
+             JOIN users u ON u.id = i.reported_by
+             WHERE i.status NOT IN ('RESOLVED', 'CONFIRMED', 'REJECTED')
+             ORDER BY i.created_at DESC`,
+            [req.user.id]
+        );
+
+        res.json({ issues: result.rows });
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).json({ message: "Could not retrieve community issues" });
+    }
+});
+
 
 router.get("/:id", async (req, res) => {
     try {
@@ -126,6 +158,63 @@ router.post("/", async (req, res) => {
         res.status(500).json({ message: "Could not create issue" });
     }
 });
+
+router.post("/:id/vote", async (req, res) => {
+    try {
+        const issueResult = await pool.query(
+            `SELECT id, reported_by, status
+             FROM issues
+             WHERE id = $1`,
+            [req.params.id]
+        );
+
+        if (!issueResult.rows.length) {
+            return res.status(404).json({ message: "Issue not found" });
+        }
+
+        const issue = issueResult.rows[0];
+
+        if (String(issue.reported_by) === String(req.user.id)) {
+            return res.status(403).json({
+                message: "You cannot vote for your own complaint"
+            });
+        }
+
+        if (["RESOLVED", "CONFIRMED", "REJECTED"].includes(issue.status)) {
+            return res.status(400).json({
+                message: "This complaint is no longer open for votes"
+            });
+        }
+
+        const voteResult = await pool.query(
+            `INSERT INTO issue_votes (issue_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT (issue_id, user_id) DO NOTHING
+             RETURNING id`,
+            [req.params.id, req.user.id]
+        );
+
+        if (!voteResult.rows.length) {
+            return res.status(409).json({
+                message: "You have already supported this complaint"
+            });
+        }
+
+        const countResult = await pool.query(
+            "SELECT COUNT(*) AS vote_count FROM issue_votes WHERE issue_id = $1",
+            [req.params.id]
+        );
+
+        res.status(201).json({
+            message: "Your support has been recorded",
+            vote_count: countResult.rows[0].vote_count
+        });
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).json({ message: "Could not record your vote" });
+    }
+});
+
 
 router.patch("/:id/status", requireRole("staff", "admin"), async (req, res) => {
     try {

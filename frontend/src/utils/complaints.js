@@ -29,9 +29,9 @@ export async function getComplaints() {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`${API_URL}?limit=100`, {
-  headers,
-  cache: "no-store"
-});
+    headers,
+    cache: "no-store"
+  });
 
   const data = await response.json();
 
@@ -47,7 +47,8 @@ export async function getComplaints() {
     createdAt: issue.created_at,
     updatedAt: issue.updated_at,
     userName: issue.reporter_name || "Student",
-    userEmail: issue.reporter_email || ""
+    userEmail: issue.reporter_email || "",
+    voteCount: Number(issue.vote_count || 0)
   }));
 }
 
@@ -75,6 +76,52 @@ export async function addComplaint(complaint) {
   return data.issue;
 }
 
+// Fetch complaints submitted by all students
+export async function getCommunityIssues() {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch(`${API_URL}/community`, {
+    headers,
+    cache: "no-store"
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not load community issues");
+  }
+
+  return data.issues.map((issue) => ({
+    id: issue.id,
+    title: issue.title,
+    description: issue.description,
+    status: formatStatus(issue.status),
+    createdAt: issue.created_at,
+    userName: issue.reporter_name || "Student",
+    reportedBy: String(issue.reported_by),
+    voteCount: Number(issue.vote_count || 0),
+    hasVoted: issue.has_voted
+  }));
+}
+
+// Support another student's complaint
+export async function voteForIssue(id) {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch(`${API_URL}/${id}/vote`, {
+    method: "POST",
+    headers
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not record your support");
+  }
+
+  return data;
+}
+
 export async function updateComplaint(id, updates) {
   const headers = await getAuthHeaders();
 
@@ -100,5 +147,3 @@ export async function updateComplaint(id, updates) {
 
   return data.issue;
 }
-
-

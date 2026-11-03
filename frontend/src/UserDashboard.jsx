@@ -1,185 +1,281 @@
 
-import React, { useEffect, useState } from "react";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   getComplaints,
-  addComplaint
+  addComplaint,
+  getCommunityIssues,
+  voteForIssue
 } from "../utils/complaints";
 
-function UserDashboard() {
+export default function UserDashboard() {
+  const navigate = useNavigate();
+
+  const [complaint, setComplaint] = useState("");
   const [complaints, setComplaints] = useState([]);
-  const [complaintTitle, setComplaintTitle] = useState("");
-  const [complaintDescription, setComplaintDescription] = useState("");
+  const [communityIssues, setCommunityIssues] = useState([]);
   const [message, setMessage] = useState("");
+  const [communityMessage, setCommunityMessage] = useState("");
+  const [votingId, setVotingId] = useState(null);
 
-
-  const userName =
-    sessionStorage.getItem("campusfixUserName") || "Student";
+  const userName = sessionStorage.getItem("campusfixUserName");
 
   useEffect(() => {
-  const loadComplaints = async () => {
-    try {
-      const data = await getComplaints();
-      setComplaints(data);
-    } catch (error) {
-      console.error("Loading complaints error:", error);
-      setMessage(error.message);
+    async function loadDashboard() {
+      try {
+        const [myData, communityData] = await Promise.all([
+          getComplaints(),
+          getCommunityIssues()
+        ]);
+
+        setComplaints(myData);
+        setCommunityIssues(communityData);
+      } catch (error) {
+        console.error(error);
+        setMessage(error.message);
+      }
     }
-  };
 
-  loadComplaints();
-}, []);
-
-  const handleSubmit = async (e) => {
-  e.preventDefault();
-  setMessage("");
-
-  if (!complaintTitle.trim() || !complaintDescription.trim()) {
-    setMessage("Please fill in all complaint details.");
-    return;
-  }
-
-  try {
-    await addComplaint({
-      title: complaintTitle.trim(),
-      description: complaintDescription.trim()
-    });
-
-    const updatedComplaints = await getComplaints();
-    setComplaints(updatedComplaints);
-
-    setComplaintTitle("");
-    setComplaintDescription("");
-
-    setMessage("Your complaint has been submitted successfully!");
-  } catch (error) {
-    console.error("Complaint submission error:", error);
-    setMessage(error.message || "Could not submit complaint.");
-  }
-};
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error("Logout error:", error);
-      setMessage("Unable to logout. Please try again.");
-    }
-  };
+    loadDashboard();
+  }, []);
 
   const myComplaints = complaints;
 
-  const formatDate = (date) => {
-    if (!date) return "Not available";
+  // Identify complaints submitted by the current student
+  const myComplaintIds = new Set(
+    myComplaints.map((item) => String(item.id))
+  );
 
-    return new Date(date).toLocaleString("en-IN", {
-      weekday: "long",
-      day: "numeric",
+  async function submitComplaint(e) {
+    e.preventDefault();
+
+    if (!complaint.trim()) {
+      setMessage("Please enter a complaint.");
+      return;
+    }
+
+    try {
+      await addComplaint({
+        title: complaint.trim().slice(0, 100),
+        description: complaint.trim()
+      });
+
+      const [myData, communityData] = await Promise.all([
+        getComplaints(),
+        getCommunityIssues()
+      ]);
+
+      setComplaints(myData);
+      setCommunityIssues(communityData);
+
+      setComplaint("");
+      setMessage("Your complaint has been submitted successfully!");
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Could not submit complaint.");
+    }
+  }
+
+  async function handleVote(issueId) {
+    try {
+      setVotingId(issueId);
+      setCommunityMessage("");
+
+      const result = await voteForIssue(issueId);
+
+      setCommunityIssues((previous) =>
+        previous.map((issue) =>
+          String(issue.id) === String(issueId)
+            ? {
+                ...issue,
+                voteCount: Number(result.vote_count),
+                hasVoted: true
+              }
+            : issue
+        )
+      );
+
+      setCommunityMessage("Your support has been recorded!");
+    } catch (error) {
+      console.error(error);
+      setCommunityMessage(error.message || "Could not record your support.");
+    } finally {
+      setVotingId(null);
+    }
+  }
+
+  function logout() {
+    sessionStorage.clear();
+    navigate("/");
+  }
+
+  function formatDate(dateString) {
+    if (!dateString) return "Not available";
+
+    const date = new Date(dateString);
+
+    return date.toLocaleDateString("en-IN", {
+      day: "2-digit",
       month: "long",
       year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
+      weekday: "long"
     });
-  };
+  }
 
   return (
     <div className="dashboard-page">
       <header className="dashboard-header">
         <div>
           <h1>CampusFix</h1>
-          <p>Student Dashboard</p>
+          <p>User Dashboard</p>
         </div>
 
-        <button onClick={handleLogout} className="logout-btn">
+        <button onClick={logout} className="logout-button">
           Logout
         </button>
       </header>
 
-      <main className="dashboard-container">
-        <section className="welcome-section">
+      <main className="dashboard-content">
+        <div className="welcome-section">
           <h2>Welcome, {userName}!</h2>
-          <p>
-            Report your campus problems and track their resolution status.
-          </p>
-        </section>
+          <p>Report campus problems and track their progress.</p>
+        </div>
 
-        <section className="complaint-form-section">
-          <h2>Report a Complaint</h2>
+        <section className="dashboard-panel">
+          <h3>Submit a Complaint</h3>
 
-          <form onSubmit={handleSubmit} className="complaint-form">
-            <label>Complaint Title</label>
-
-            <input
-              type="text"
-              placeholder="Enter complaint title"
-              value={complaintTitle}
-              onChange={(e) => setComplaintTitle(e.target.value)}
-              required
-            />
-
-            <label>Complaint Description</label>
-
+          <form onSubmit={submitComplaint}>
             <textarea
-              placeholder="Describe your problem..."
-              value={complaintDescription}
-              onChange={(e) => setComplaintDescription(e.target.value)}
+              value={complaint}
+              onChange={(e) => {
+                setComplaint(e.target.value);
+                setMessage("");
+              }}
+              placeholder="Describe your campus problem..."
               rows="4"
               required
             />
 
-            <button type="submit">
+            <button type="submit" className="primary-action">
               Submit Complaint
             </button>
-
-            {message && <p>{message}</p>}
           </form>
+
+          {message && (
+            <p className="success-message">{message}</p>
+          )}
         </section>
 
-        <section className="my-complaints-section">
-          <h2>My Complaints</h2>
+        <section className="dashboard-panel">
+          <div className="panel-heading">
+            <h3>My Complaints</h3>
+            <span>{myComplaints.length} Total</span>
+          </div>
 
           {myComplaints.length === 0 ? (
-            <p>You have not submitted any complaints yet.</p>
-          ) : (
-            <div className="complaints-list">
-              {myComplaints.map((complaint) => (
-                <div className="complaint-card" key={complaint.id}>
-                  <h3>{complaint.title}</h3>
-
-                  <p>{complaint.description}</p>
-
-                  <p>
-                    <strong>Status: </strong>
-                    <span
-                      className={`status-badge ${
-                        complaint.status
-                          ?.toLowerCase()
-                          .replace(/\s+/g, "-")
-                      }`}
-                    >
-                      {complaint.status}
-                    </span>
-                  </p>
-
-                  <p>
-                    <strong>Submitted:</strong>{" "}
-                    {formatDate(complaint.createdAt)}
-                  </p>
-
-                  <p>
-                    <strong>Last Updated:</strong>{" "}
-                    {formatDate(complaint.updatedAt)}
-                  </p>
-                </div>
-              ))}
+            <div className="empty-complaints">
+              <h3>No complaints yet</h3>
+              <p>Your submitted complaints will appear here.</p>
             </div>
+          ) : (
+            myComplaints.map((item) => (
+              <div className="user-complaint-card" key={item.id}>
+                <div className="complaint-title-row">
+                  <h4>{item.title}</h4>
+
+                  <span className={`status-badge ${
+                    item.status === "Resolved"
+                      ? "resolved"
+                      : item.status === "In Progress"
+                      ? "in-progress"
+                      : "pending"
+                  }`}>
+                    {item.status}
+                  </span>
+                </div>
+
+                <p className="complaint-date">
+                  Submitted: {formatDate(item.createdAt)}
+                </p>
+
+                <p className="complaint-date">
+                  Last updated: {formatDate(item.updatedAt)}
+                </p>
+              </div>
+            ))
+          )}
+        </section>
+
+        {/* Community Issues Section */}
+        <section className="dashboard-panel">
+          <div className="panel-heading">
+            <h3>Community Issues</h3>
+            <span>{communityIssues.length} Open Issues</span>
+          </div>
+
+          <p>
+            Facing the same problem as another student?
+            Support their complaint to let the administration know.
+          </p>
+
+          {communityMessage && (
+            <p className="success-message">{communityMessage}</p>
+          )}
+
+          {communityIssues.length === 0 ? (
+            <div className="empty-complaints">
+              <h3>No community issues available</h3>
+              <p>New open complaints from students will appear here.</p>
+            </div>
+          ) : (
+            communityIssues.map((item) => {
+              const isMine = myComplaintIds.has(String(item.id));
+
+              return (
+                <div className="user-complaint-card" key={item.id}>
+                  <div className="complaint-title-row">
+                    <h4>{item.title}</h4>
+
+                    <span className={`status-badge ${
+                      item.status === "In Progress"
+                        ? "in-progress"
+                        : "pending"
+                    }`}>
+                      {item.status}
+                    </span>
+                  </div>
+
+                  <p>{item.description}</p>
+
+                  <p className="complaint-date">
+                    Reported by: {item.userName}
+                  </p>
+
+                  <p className="complaint-date">
+                    {item.voteCount} students facing this too
+                  </p>
+
+                  <button
+                    type="button"
+                    className="primary-action"
+                    disabled={isMine || item.hasVoted || votingId === item.id}
+                    onClick={() => handleVote(item.id)}
+                  >
+                    {isMine
+                      ? "Your Complaint"
+                      : item.hasVoted
+                      ? "✓ You're Supporting This"
+                      : votingId === item.id
+                      ? "Recording Support..."
+                      : "I'm Facing This Too"}
+                  </button>
+                </div>
+              );
+            })
           )}
         </section>
       </main>
     </div>
   );
 }
-
-export default UserDashboard;
