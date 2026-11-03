@@ -1,8 +1,30 @@
 const express = require("express");
 const pool = require("../supabase");
 const { authenticateToken, requireRole } = require("../middleware/auth");
+const multer = require("multer");
+const { randomUUID } = require("crypto");
+const supabaseStorage = require("../supabaseStorage");
 
 const router = express.Router();
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024
+    },
+    fileFilter: (req, file, callback) => {
+        const allowedTypes = [
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+        ];
+
+        if (allowedTypes.includes(file.mimetype)) {
+            callback(null, true);
+        } else {
+            callback(new Error("Only JPG, PNG and WEBP images are allowed"));
+        }
+    }
+});
 
 const statuses = [
     "PENDING", "REVIEWED", "ASSIGNED",
@@ -19,6 +41,7 @@ const priorities = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 
 router.use(authenticateToken);
 
+
 router.get("/", async (req, res) => {
     try {
         const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
@@ -26,39 +49,72 @@ router.get("/", async (req, res) => {
 
         const result = await pool.query(
             `SELECT i.*,
-        u.name AS reporter_name,
-        u.email AS reporter_email,
-a.name AS assignee_name,
-(SELECT COUNT(*)
- FROM issue_votes iv
- WHERE iv.issue_id = i.id) AS vote_count
+                u.name AS reporter_name,
+                u.email AS reporter_email,
+                a.name AS assignee_name,
+                (SELECT COUNT(*)
+                 FROM issue_votes iv
+                 WHERE iv.issue_id = i.id) AS vote_count
              FROM issues i
              JOIN users u ON u.id = i.reported_by
              LEFT JOIN users a ON a.id = i.assigned_to
              WHERE ($1::text IS NULL OR i.status = $1)
-  AND ($2::text IS NULL OR i.category = $2)
-  AND (
-      $3::text IN ('staff', 'admin')
-      OR i.reported_by = $4
-  )
+               AND ($2::text IS NULL OR i.category = $2)
+               AND (
+                   $3::text IN ('staff', 'admin')
+                   OR i.reported_by = $4
+               )
              ORDER BY i.created_at DESC
              LIMIT $5 OFFSET $6`,
             [
-    req.query.status || null,
-    req.query.category || null,
-    req.user.role,
-    req.user.id,
-    limit,
-    (page - 1) * limit
-]
+                req.query.status || null,
+                req.query.category || null,
+                req.user.role,
+                req.user.id,
+                limit,
+                (page - 1) * limit
+            ]
         );
 
-        res.json({ page, limit, issues: result.rows });
+        const issuesWithPhotos = await Promise.all(
+            result.rows.map(async (issue) => {
+                if (!issue.image) {
+                    return { ...issue, photoUrl: null };
+                }
+
+                if (issue.image.startsWith("http")) {
+                    return { ...issue, photoUrl: issue.image };
+                }
+
+                const { data, error } = await supabaseStorage
+                    .storage
+                    .from("complaint-photos")
+                    .createSignedUrl(issue.image, 3600);
+
+                if (error) {
+                    console.error("Could not generate photo URL:", error.message);
+                    return { ...issue, photoUrl: null };
+                }
+
+                return {
+                    ...issue,
+                    photoUrl: data.signedUrl
+                };
+            })
+        );
+
+        res.json({
+            page,
+            limit,
+            issues: issuesWithPhotos
+        });
+
     } catch (error) {
         console.error(error.message);
         res.status(500).json({ message: "Could not retrieve issues" });
     }
 });
+
 
 router.get("/community", async (req, res) => {
     try {
@@ -89,13 +145,14 @@ router.get("/community", async (req, res) => {
 });
 
 
+
 router.get("/:id", async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT i.*,
-        u.name AS reporter_name,
-        u.email AS reporter_email,
-        a.name AS assignee_name
+                u.name AS reporter_name,
+                u.email AS reporter_email,
+                a.name AS assignee_name
              FROM issues i
              JOIN users u ON u.id = i.reported_by
              LEFT JOIN users a ON a.id = i.assigned_to
@@ -107,16 +164,57 @@ router.get("/:id", async (req, res) => {
             return res.status(404).json({ message: "Issue not found" });
         }
 
-        res.json({ issue: result.rows[0] });
+        const issue = result.rows[0];
+
+        const privileged = ["staff", "admin"].includes(req.user.role);
+        const owner = String(issue.reported_by) === String(req.user.id);
+
+        if (!privileged && !owner) {
+            return res.status(403).json({
+                message: "You cannot view this issue"
+            });
+        }
+
+        issue.photoUrl = null;
+
+        if (issue.image) {
+            if (issue.image.startsWith("http")) {
+                issue.photoUrl = issue.image;
+            } else {
+                const { data, error } = await supabaseStorage
+                    .storage
+                    .from("complaint-photos")
+                    .createSignedUrl(issue.image, 3600);
+
+                if (error) {
+                    console.error("Could not generate photo URL:", error.message);
+                } else {
+                    issue.photoUrl = data.signedUrl;
+                }
+            }
+        }
+
+        res.json({ issue });
     } catch (error) {
         console.error(error.message);
         res.status(500).json({ message: "Could not retrieve issue" });
     }
 });
 
-router.post("/", async (req, res) => {
+
+
+router.post("/", (req, res, next) => {
+    upload.single("photo")(req, res, (error) => {
+        if (error) {
+            return res.status(400).json({ message: error.message });
+        }
+        next();
+    });
+}, async (req, res) => {
+    let uploadedPhotoPath = null;
+
     try {
-        const { title, description, category, priority, location, image } = req.body;
+        const { title, description, category, priority, location } = req.body;
 
         if (
             typeof title !== "string" || !title.trim() ||
@@ -136,6 +234,28 @@ router.post("/", async (req, res) => {
             return res.status(400).json({ message: "Invalid priority" });
         }
 
+        if (req.file) {
+            const extensionByType = {
+                "image/jpeg": "jpg",
+                "image/png": "png",
+                "image/webp": "webp"
+            };
+
+            const extension = extensionByType[req.file.mimetype];
+
+            uploadedPhotoPath = `${req.user.id}/${randomUUID()}.${extension}`;
+
+            const { error: uploadError } = await supabaseStorage
+                .storage
+                .from("complaint-photos")
+                .upload(uploadedPhotoPath, req.file.buffer, {
+                    contentType: req.file.mimetype,
+                    upsert: false
+                });
+
+            if (uploadError) throw uploadError;
+        }
+
         const result = await pool.query(
             `INSERT INTO issues
                 (title, description, category, priority, location, image, status, reported_by)
@@ -147,44 +267,50 @@ router.post("/", async (req, res) => {
                 category || "Other",
                 priority || "MEDIUM",
                 location.trim(),
-                image || null,
+                uploadedPhotoPath,
                 req.user.id
             ]
         );
 
         const newIssue = result.rows[0];
 
-// Notify all admins and staff
-try {
-    await pool.query(
-        `INSERT INTO notifications
-            (user_id, issue_id, title, message, type)
-         SELECT
-            id,
-            $1,
-            'New Complaint Received',
-            $2,
-            'new_complaint'
-         FROM users
-         WHERE role IN ('admin', 'staff')`,
-        [
-            newIssue.id,
-            `A new complaint "${newIssue.title}" has been submitted.`
-        ]
-    );
-} catch (notificationError) {
-    console.error("Notification creation failed:", notificationError.message);
-}
+        try {
+            await pool.query(
+                `INSERT INTO notifications
+                    (user_id, issue_id, title, message, type)
+                 SELECT id, $1, 'New Complaint Received', $2, 'new_complaint'
+                 FROM users
+                 WHERE role IN ('admin', 'staff')`,
+                [
+                    newIssue.id,
+                    `A new complaint "${newIssue.title}" has been submitted.`
+                ]
+            );
+        } catch (notificationError) {
+            console.error("Notification creation failed:", notificationError.message);
+        }
 
-res.status(201).json({
-    message: "Issue created",
-    issue: newIssue
-});
+        res.status(201).json({
+            message: "Issue created",
+            issue: newIssue
+        });
     } catch (error) {
+        if (uploadedPhotoPath) {
+            const { error: cleanupError } = await supabaseStorage
+                .storage
+                .from("complaint-photos")
+                .remove([uploadedPhotoPath]);
+
+            if (cleanupError) {
+                console.error("Photo cleanup failed:", cleanupError.message);
+            }
+        }
+
         console.error(error.message);
         res.status(500).json({ message: "Could not create issue" });
     }
 });
+
 
 router.post("/:id/vote", async (req, res) => {
     try {
